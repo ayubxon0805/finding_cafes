@@ -1,4 +1,4 @@
-import 'package:finding_cafes/google_maps_flutter.dart';
+import 'package:finding_cafes/splash%20screen.dart';
 import 'package:flutter/material.dart';
 
 void main() {
@@ -16,7 +16,7 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
       ),
       debugShowCheckedModeBanner: false,
-      home: const MapScreen(),
+      home: SpashScreen(),
     );
   }
 }

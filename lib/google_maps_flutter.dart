@@ -4,7 +4,8 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:dio/dio.dart';
 
 class MapScreen extends StatefulWidget {
-  const MapScreen({super.key});
+  final String placeType;
+  const MapScreen({super.key, required this.placeType});
 
   @override
   State<MapScreen> createState() => _MapScreenState();
@@ -16,7 +17,6 @@ class _MapScreenState extends State<MapScreen> {
   final Set<Marker> _markers = {};
   final Set<Polyline> _polylines = {};
   final String _apiKey = "AIzaSyA7qDSMl8SOjS_8-BHSRReewBXw_Um0sCw";
-
   @override
   void initState() {
     super.initState();
@@ -26,14 +26,12 @@ class _MapScreenState extends State<MapScreen> {
   Future<void> _getCurrentLocation() async {
     bool serviceEnabled;
     LocationPermission permission;
-
     // GPS yoqilganligini tekshiramiz
     serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       debugPrint("Location services are disabled.");
       return;
     }
-
     // Ruxsatlarni tekshiramiz
     permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
@@ -43,17 +41,13 @@ class _MapScreenState extends State<MapScreen> {
         return;
       }
     }
-
     if (permission == LocationPermission.deniedForever) {
       debugPrint(
           "User permanently denied location permissions. Go to settings.");
       return;
     }
-
-    // Joylashuvni olish
     Position position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high);
-
     setState(() {
       _currentPosition = LatLng(position.latitude, position.longitude);
       _markers.add(
@@ -64,7 +58,6 @@ class _MapScreenState extends State<MapScreen> {
         ),
       );
     });
-
     _goToCurrentLocation();
     _fetchNearbyCafes(); // Kafelarni yuklash
   }
@@ -81,26 +74,37 @@ class _MapScreenState extends State<MapScreen> {
     if (_currentPosition == null) return;
 
     final url =
-        "https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${_currentPosition!.latitude},${_currentPosition!.longitude}&radius=1000&type=cafe&key=$_apiKey";
+        "https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${_currentPosition!.latitude},${_currentPosition!.longitude}&radius=5000&type=${widget.placeType}&key=$_apiKey";
 
     try {
       final response = await Dio().get(url);
       if (response.statusCode == 200) {
         final data = response.data;
-        final results = data['results'] as List;
 
+        final results = data['results'] as List;
+        for (var place in results) {
+          print(place['photos']);
+        }
         setState(() {
           _markers.addAll(results.map((place) {
             final location = place['geometry']['location'];
             final cafeLocation = LatLng(location['lat'], location['lng']);
+            final rating = place.containsKey('rating')
+                ? place['rating'].toString()
+                : "No rating"; // Reytingni tekshiramiz
+            // print(photos);
+
             return Marker(
               markerId: MarkerId(place['place_id']),
               position: cafeLocation,
-              infoWindow: InfoWindow(title: place['name']),
+              infoWindow: InfoWindow(
+                title: place['name'],
+                snippet: "⭐ $rating", // Reytingni infoWindow ichida chiqaramiz
+              ),
               icon: BitmapDescriptor.defaultMarkerWithHue(
                   BitmapDescriptor.hueOrange),
               onTap: () {
-                _drawRoute(cafeLocation); // Marker bosilganda yo‘l chizish
+                _drawRoute(cafeLocation);
               },
             );
           }).toSet());
@@ -138,6 +142,7 @@ class _MapScreenState extends State<MapScreen> {
         }
       }
     } catch (e) {
+      // ignore: avoid_print
       print("Error drawing route: $e");
     }
   }
@@ -146,7 +151,6 @@ class _MapScreenState extends State<MapScreen> {
     List<LatLng> points = [];
     int index = 0, len = encoded.length;
     int lat = 0, lng = 0;
-
     while (index < len) {
       int b, shift = 0, result = 0;
       do {
@@ -156,7 +160,6 @@ class _MapScreenState extends State<MapScreen> {
       } while (b >= 0x20);
       int dlat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
       lat += dlat;
-
       shift = 0;
       result = 0;
       do {
@@ -175,6 +178,10 @@ class _MapScreenState extends State<MapScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        title: Text("All ${widget.placeType}s in your near"),
+      ),
       body: Stack(
         children: [
           GoogleMap(
@@ -207,7 +214,6 @@ class _MapScreenState extends State<MapScreen> {
             },
           ),
 
-          // Current Location Indicator
           if (_currentPosition == null)
             Center(
               child: Container(
